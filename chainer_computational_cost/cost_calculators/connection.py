@@ -1,13 +1,59 @@
+import numpy
+
 from chainer_computational_cost.cost_calculators import register
 
 from chainer.functions.connection.convolution_2d \
     import Convolution2DFunction
+from chainer.functions.connection.convolution_nd \
+    import ConvolutionND
 from chainer.functions.connection.deconvolution_2d \
     import Deconvolution2DFunction
 from chainer.functions.connection.linear import LinearFunction
 
 from chainer.utils.conv import get_conv_outsize
 from chainer.utils.conv import get_deconv_outsize
+
+
+@register(ConvolutionND)
+def calc_convnd(func, in_data, **kwargs):
+    x, W = in_data[:2]
+    b = in_data[2] if len(in_data) == 3 else None
+
+    batch_size, in_c = x.shape[:2]
+    dims = x.shape[2:]
+    out_c = W.shape[0]
+    ksize = W.shape[2:]
+    g = func.groups if hasattr(func, 'groups') else 1
+    stride = func.stride
+    pad = func.pad
+    dilate = func.dilate
+
+    outs = [
+        get_conv_outsize(d, k, s, p, cover_all=func.cover_all, d=di)
+        for (d, k, s, p, di) in zip(dims, ksize, stride, pad, dilate)]
+
+    if kwargs.get('fma_1flop'):
+        flops = in_c * (out_c // g) * numpy.prod(ksize) * numpy.prod(outs)
+    else:
+        if b is not None:
+            flops = 2 * in_c * out_c * numpy.prod(ksize) * numpy.prod(outs) // g
+        else:
+            flops = 2 * ((in_c // g) * (out_c // g) - 1) * \
+                numpy.prod(ksize) * numpy.prod(outs) * g
+
+    mread = x.size + W.size
+    mwrite = batch_size * out_c * numpy.prod(outs)
+    if b is not None:
+        mread += b.size
+
+    params = {
+        'k': (ksize[0] if all(k == ksize[0] for k in ksize) else ksize),
+        's': (stride[0] if all(s == stride[0] for s in stride) else stride),
+        'p': (pad[0] if all(p == pad[0] for p in pad) else pad),
+        'd': (dilate[0] if all(di == dilate[0] for di in dilate) else dilate),
+        'groups': g, 'nobias': b is None,
+    }
+    return (int(flops * batch_size), int(mread), int(mwrite), params)
 
 
 @register(Convolution2DFunction)
