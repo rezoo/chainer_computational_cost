@@ -47,10 +47,10 @@ def calc_convnd(func, in_data, **kwargs):
         mread += b.size
 
     params = {
-        'k': (ksize[0] if all(k == ksize[0] for k in ksize) else ksize),
-        's': (stride[0] if all(s == stride[0] for s in stride) else stride),
-        'p': (pad[0] if all(p == pad[0] for p in pad) else pad),
-        'd': (dilate[0] if all(di == dilate[0] for di in dilate) else dilate),
+        'k': (int(ksize[0]) if all(k == ksize[0] for k in ksize) else ksize),
+        's': (int(stride[0]) if all(s == stride[0] for s in stride) else stride),
+        'p': (int(pad[0]) if all(p == pad[0] for p in pad) else pad),
+        'd': (int(dilate[0]) if all(di == dilate[0] for di in dilate) else dilate),
         'groups': g, 'nobias': b is None,
     }
     return (int(flops * batch_size), int(mread), int(mwrite), params)

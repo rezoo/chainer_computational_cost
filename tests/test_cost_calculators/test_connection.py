@@ -3,6 +3,8 @@ import numpy as np
 
 from chainer.functions.connection.convolution_2d \
     import Convolution2DFunction
+from chainer.functions.connection.convolution_nd \
+    import ConvolutionND
 from chainer.functions.connection.deconvolution_2d \
     import Deconvolution2DFunction
 from chainer.functions.connection.linear import LinearFunction
@@ -10,6 +12,31 @@ from chainer.functions.connection.linear import LinearFunction
 from helpers import calculate_cost
 from helpers import require_chainer_version
 from helpers import require_import
+
+
+def test_convnd_with_bias_fma():
+    (c_in, t_in, h_in, w_in), (c_out, t_out, h_out, w_out) = (3, 10, 10, 10), (12, 10, 10, 10)
+    k = 3
+
+    x = np.random.randn(1, c_in, t_in, h_in, w_in).astype(np.float32)
+    W = np.random.randn(c_out, c_in, k, k, k).astype(np.float32)
+    b = np.random.randn(c_out).astype(np.float32)
+    f = ConvolutionND(ndim=3, pad=(np.int64(1), np.int64(1), np.int64(1)))
+    flops, mr, mw, params = calculate_cost(f, [x, W, b], fma_1flop=True)
+
+    assert f.apply([x, W, b])[0].shape == (1, c_out, t_out, h_out, w_out)
+    assert flops == (c_in * c_out * k * k * k * t_out * h_out * w_out)
+    assert mr == c_in * t_in * h_in * w_in + c_out * c_in * k * k * k + c_out
+    assert mw == c_out * t_out * h_out * w_out
+    assert params == {
+        'k': k, 's': 1, 'p': 1, 'd': 1,
+        'groups': 1, 'nobias': False
+    }
+    assert type(params['k']) is int
+    assert type(params['s']) is int
+    assert type(params['p']) is int
+    assert type(params['d']) is int
+    assert type(params['groups']) is int
 
 
 def test_conv2d_with_bias_fma():
